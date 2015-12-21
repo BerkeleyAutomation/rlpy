@@ -10,6 +10,7 @@ rlpy/Domains/HIVTreatment_dynamics.c
 .project
 .pydevproject
 *.pyc
+*.DS_Store
 Config.py
 .ropeproject
 .nfs*
