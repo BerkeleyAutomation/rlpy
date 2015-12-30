@@ -2,6 +2,7 @@
 # from .HelicopterHover import HelicopterHover, HelicopterHoverExtended
 # from .HIVTreatment import HIVTreatment
 # from .PuddleWorld import PuddleWorld
+from .GridWorld import GridWorld
 from .GridWorldInter import GridWorldInter
 # from .BlocksWorld import BlocksWorld
 # from .MountainCar import MountainCar

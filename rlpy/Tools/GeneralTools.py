@@ -335,6 +335,11 @@ def createColorMaps():
     mycmap = colors.ListedColormap(
         ['w', '.75', 'b', 'g', 'r', 'k'], 'GridWorld')
     cm.register_cmap(cmap=mycmap)
+
+    mycmap = colors.ListedColormap(
+        ['w', '.75', 'b', 'g', 'r', 'k', 'c'], 'GridWorldInter')
+    cm.register_cmap(cmap=mycmap)
+
     mycmap = colors.ListedColormap(['r', 'k'], 'fiftyChainActions')
     cm.register_cmap(cmap=mycmap)
     mycmap = colors.ListedColormap(['b', 'r'], 'FlipBoard')

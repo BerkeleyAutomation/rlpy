@@ -12,11 +12,11 @@ __license__ = "BSD 3-Clause"
 __author__ = "Alborz Geramifard"
 
 
-class GridWorldInter(Domain):
+class GridWorld(Domain):
 
     """
-    The GridWorldInter domain simulates a path-planning problem for a mobile robot
-    in an environment with obstacles - modified with intermediate rewards, classified as DOOR position. The goal of the agent is to
+    The GridWorld domain simulates a path-planning problem for a mobile robot
+    in an environment with obstacles. The goal of the agent is to
     navigate from the starting point to the goal state.
     The map is loaded from a text file filled with numbers showing the map with the following
     coding for each cell:
@@ -33,7 +33,7 @@ class GridWorldInter(Domain):
     Four cardinal directions: up, down, left, right (given that
     the destination is not blocked or out of range). \n
     **TRANSITION:**
-    There is an X probability of failure for each move, in which case the action
+    There is 30% probability of failure for each move, in which case the action
     is replaced with a random action at each timestep. Otherwise the move succeeds
     and the agent moves in the intended direction. \n
     **REWARD:**
@@ -49,10 +49,9 @@ class GridWorldInter(Domain):
     #: Number of rows and columns of the map
     ROWS = COLS = 0
     #: Reward constants
-    GOAL_REWARD = +.5
+    GOAL_REWARD = +1
     PIT_REWARD = -1
     STEP_REWARD = -.001
-
     #: Set by the domain = min(100,rows*cols)
     episodeCap = None
     #: Movement Noise
@@ -67,17 +66,17 @@ class GridWorldInter(Domain):
 
     actions_num = 4
     # Constants in the map
-    EMPTY, BLOCKED, START, GOAL, PIT, AGENT, DOOR = range(7)
+    EMPTY, BLOCKED, START, GOAL, PIT, AGENT = range(6)
     #: Up, Down, Left, Right
     ACTIONS = np.array([[-1, 0], [+1, 0], [0, -1], [0, +1]])
     # directory of maps shipped with rlpy
     default_map_dir = os.path.join(
         __rlpy_location__,
-        "CustomDomains",
+        "Domains",
         "GridWorldMaps")
 
     def __init__(self, mapname=os.path.join(default_map_dir, "4x5.txt"),
-                 noise=.1, episodeCap=1000):
+                 noise=.1, episodeCap=None):
         self.map = np.loadtxt(mapname, dtype=np.uint8)
         if self.map.ndim == 1:
             self.map = self.map[np.newaxis, :]
@@ -89,9 +88,8 @@ class GridWorldInter(Domain):
         self.DimNames = ['Row', 'Col']
         # 2*self.ROWS*self.COLS, small values can cause problem for some
         # planning techniques
-        self.episodeCap = episodeCap 
-        self.DOOR_REWARD = 0.5 / len(np.argwhere(self.map == self.DOOR))
-        super(GridWorldInter, self).__init__()
+        self.episodeCap = 1000
+        super(GridWorld, self).__init__()
 
     def showDomain(self, a=0, s=None):
         if s is None:
@@ -102,10 +100,10 @@ class GridWorldInter(Domain):
             self.agent_fig = plt.figure("Domain")
             self.domain_fig = plt.imshow(
                 self.map,
-                cmap='GridWorldInter',
+                cmap='GridWorld',
                 interpolation='nearest',
                 vmin=0,
-                vmax=6)
+                vmax=5)
             plt.xticks(np.arange(self.COLS), fontsize=FONTSIZE)
             plt.yticks(np.arange(self.ROWS), fontsize=FONTSIZE)
             # pl.tight_layout()
@@ -127,14 +125,6 @@ class GridWorldInter(Domain):
                'k>',
                markersize=20.0 - self.COLS)
         plt.draw()
-
-    def showTrajectory(self, trajectory):
-        '''
-        :param trajectory: sequence of states to show  
-        '''
-        for runs, trial in sorted(trajectory.items(), key=lambda pair: pair[0]):
-            for state in trial:
-                self.showDomain(s=state)
 
     def showLearning(self, representation):
         if self.valueFunction_fig is None:
@@ -276,13 +266,13 @@ class GridWorldInter(Domain):
         # Show Value Function
         self.valueFunction_fig.set_data(V)
 
-
         ### DEBUG ####
         import pickle; 
         temp_path = "./Results/GradientCheck/"
         if not os.path.exists(temp_path):
             os.makedirs(temp_path)
-        with open(temp_path + "SR.p", "w") as f:
+
+        with open(temp_path + "CTRL.p", "w") as f:
             pickle.dump(V, f)
         ####
 
@@ -336,9 +326,6 @@ class GridWorldInter(Domain):
             self.state = ns.copy()
 
         # Compute the reward
-        if self.map[ns[0], ns[1]] == self.DOOR:
-            r = self.DOOR_REWARD + self.STEP_REWARD
-            self.map[ns[0], ns[1]] = self.EMPTY # can only obtain once ... make sure this doesn't persist through trials
         if self.map[ns[0], ns[1]] == self.GOAL:
             r = self.GOAL_REWARD
         if self.map[ns[0], ns[1]] == self.PIT:
@@ -359,6 +346,15 @@ class GridWorldInter(Domain):
         if self.map[s[0], s[1]] == self.PIT:
             return True
         return False
+
+    def showTrajectory(self, trajectory):
+		'''
+		:param trajectory: sequence of states to show  
+		'''
+		import ipdb; ipdb.set_trace()
+		for runs, trial in sorted(trajectory.items(), key=lambda pair: pair[0]):
+			for state in trial:
+				self.showDomain(s=state)
 
     def possibleActions(self, s=None):
         if s is None:
