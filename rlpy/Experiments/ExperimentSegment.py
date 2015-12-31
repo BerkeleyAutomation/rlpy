@@ -137,59 +137,6 @@ class ExperimentSegment(Experiment):
 
         self.perform_trajs = defaultdict(list)
 
-    def _update_path(self, path):
-
-        # compile and create output path
-        self.full_path = self.compile_path(path)
-        checkNCreateDirectory(self.full_path + '/')
-        self.logger.info(
-            "Output:\t\t\t%s/%s" %
-            (self.full_path, self.output_filename))
-        #TODO set up logging to file for rlpy loggers
-
-        self.log_filename = '{:0>3}.log'.format(self.exp_id)
-        if self.config_logging:
-            rlpy_logger = logging.getLogger("rlpy")
-            for h in rlpy_logger.handlers:
-                rlpy_logger.removeHandler(h)
-            rlpy_logger.addHandler(logging.StreamHandler())
-            rlpy_logger.addHandler(logging.FileHandler(os.path.join(self.full_path, self.log_filename)))
-            rlpy_logger.setLevel(logging.INFO)
-
-    def seed_components(self):
-        """
-        set the initial seeds for all random number generators used during
-        the experiment run based on the currently set ``exp_id``.
-        """
-        self._update_path(self.path)
-        self.output_filename = '{:0>3}-results.json'.format(self.exp_id)
-        np.random.seed(self.randomSeeds[self.exp_id - 1])
-        self.domain.random_state = np.random.RandomState(
-            self.randomSeeds[self.exp_id - 1])
-        self.domain.init_randomization()
-        # make sure the performance_domain has a different seed
-        self.performance_domain.random_state = np.random.RandomState(
-            self.randomSeeds[self.exp_id + 20])
-
-        # Its ok if use same seed as domain, random calls completely different
-        self.agent.random_state = np.random.RandomState(
-            self.randomSeeds[self.exp_id - 1])
-        self.agent.init_randomization()
-        self.agent.representation.random_state = np.random.RandomState(
-            self.randomSeeds[self.exp_id - 1])
-        self.agent.representation.init_randomization()
-        self.agent.policy.random_state = np.random.RandomState(
-            self.randomSeeds[self.exp_id - 1])
-        self.agent.policy.init_randomization()
-
-        self.log_filename = '{:0>3}.log'.format(self.exp_id)
-        if self.config_logging:
-            rlpy_logger = logging.getLogger("rlpy")
-            for h in rlpy_logger.handlers:
-                if isinstance(h, logging.FileHandler):
-                    rlpy_logger.removeHandler(h)
-            rlpy_logger.addHandler(logging.FileHandler(os.path.join(self.full_path, self.log_filename)))
-
     def dcperformanceRun(self, total_steps, visualize=False, saveTrajectories=False, current_steps=0):
         """
         Execute a single episode using the current policy to evaluate its
@@ -399,7 +346,7 @@ class ExperimentSegment(Experiment):
                     self.start_time) - self.total_eval_time
 
                 # show policy or value function
-                if visualize_learning:
+                if visualize_learning: # or total_steps == 1200:
                     self.domain.showLearning(self.agent.representation)
 
                 self.evaluate(
@@ -426,6 +373,28 @@ class ExperimentSegment(Experiment):
                 os.makedirs(self.full_path)
             with open(results_fn, "w") as f:
                 pickle.dump(self.perform_trajs, f)
+
+    def cur_v(self):
+        d = deepcopy(self.performance_domain)
+        representation = self.agent.representation
+        V = np.zeros((d.ROWS, d.COLS))
+        for r in xrange(d.ROWS):
+            for c in xrange(d.COLS):
+                if d.map[r, c] == d.BLOCKED:
+                    V[r, c] = 0
+                if d.map[r, c] == d.GOAL:
+                    V[r, c] = d.MAX_RETURN
+                if d.map[r, c] == d.PIT:
+                    V[r, c] = d.MIN_RETURN
+                if d.map[r, c] == d.EMPTY or d.map[r, c] == d.START:
+                    s = np.array([r, c])
+                    As = d.possibleActions(s)
+                    terminal = d.isTerminal(s)
+                    Qs = representation.Qs(s, terminal)
+                    bestA = representation.bestActions(s, terminal, As)
+                    V[r, c] = max(Qs[As])
+        return V
+
                 
  
     def evaluate(self, total_steps, episode_number, visualize=0, saveTrajectories=False):
@@ -495,6 +464,16 @@ class ExperimentSegment(Experiment):
 
         np.random.set_state(random_state)
         #self.domain.rand_state = random_state_domain
+
+    def saveWeights(self):
+        """Saves the weights of the representation to be transferred to another MDP"""
+        import pickle
+        results_fn = os.path.join(self.full_path, "weights.p")
+        print results_fn
+        if not os.path.exists(self.full_path):
+            os.makedirs(self.full_path)
+        with open(results_fn, "w") as f:
+            pickle.dump(self.agent.representation.weight_vec, f)
 
     def plot(self, y="return", x="learning_steps", save=False):
         """Plots the performance of the experiment
