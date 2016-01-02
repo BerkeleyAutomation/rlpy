@@ -49,7 +49,7 @@ class GridWorldInter(Domain):
     #: Number of rows and columns of the map
     ROWS = COLS = 0
     #: Reward constants
-    GOAL_REWARD = +.5
+    GOAL_REWARD = +0.8
     PIT_REWARD = -1
     STEP_REWARD = -.001
 
@@ -58,7 +58,7 @@ class GridWorldInter(Domain):
     #: Movement Noise
     NOISE = 0
     # Used for graphical normalization
-    MAX_RETURN = 1
+    MAX_RETURN = GOAL_REWARD
     RMAX = MAX_RETURN
     # Used for graphical normalization
     MIN_RETURN = -1
@@ -77,7 +77,8 @@ class GridWorldInter(Domain):
         "GridWorldMaps")
 
     def __init__(self, mapname=os.path.join(default_map_dir, "4x5.txt"),
-                 noise=.1, episodeCap=1000):
+                 noise=.1, episodeCap=1000, new_goal=0.8):
+        assert new_goal <= 1.0 and new_goal >= 0
         self.map = np.loadtxt(mapname, dtype=np.uint8)
         if self.map.ndim == 1:
             self.map = self.map[np.newaxis, :]
@@ -85,12 +86,16 @@ class GridWorldInter(Domain):
         self.ROWS, self.COLS = np.shape(self.map)
         self.statespace_limits = np.array(
             [[0, self.ROWS - 1], [0, self.COLS - 1]])
+
         self.NOISE = noise
         self.DimNames = ['Row', 'Col']
         # 2*self.ROWS*self.COLS, small values can cause problem for some
         # planning techniques
         self.episodeCap = episodeCap 
-        self.DOOR_REWARD = 0.5 / len(np.argwhere(self.map == self.DOOR))
+
+        self.GOAL_REWARD = new_goal
+        self.DOOR_REWARD = (1. - self.GOAL_REWARD) / len(np.argwhere(self.map == self.DOOR))
+
         super(GridWorldInter, self).__init__()
 
     def showDomain(self, a=0, s=None):
@@ -253,7 +258,7 @@ class GridWorldInter(Domain):
                     V[r, c] = self.MAX_RETURN
                 if self.map[r, c] == self.PIT:
                     V[r, c] = self.MIN_RETURN
-                if self.map[r, c] == self.EMPTY or self.map[r, c] == self.START:
+                if self.map[r, c] == self.EMPTY or self.map[r, c] == self.START or self.map[r,c] == self.DOOR:
                     s = np.array([r, c])
                     As = self.possibleActions(s)
                     terminal = self.isTerminal(s)

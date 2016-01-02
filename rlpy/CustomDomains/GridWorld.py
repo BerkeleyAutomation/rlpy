@@ -76,7 +76,7 @@ class GridWorld(Domain):
         "GridWorldMaps")
 
     def __init__(self, mapname=os.path.join(default_map_dir, "4x5.txt"),
-                 noise=.1, episodeCap=None):
+                 noise=.1, episodeCap=None, step_reward = -0.001):
         self.map = np.loadtxt(mapname, dtype=np.uint8)
         if self.map.ndim == 1:
             self.map = self.map[np.newaxis, :]
@@ -85,6 +85,7 @@ class GridWorld(Domain):
         self.statespace_limits = np.array(
             [[0, self.ROWS - 1], [0, self.COLS - 1]])
         self.NOISE = noise
+        self.STEP_REWARD = step_reward
         self.DimNames = ['Row', 'Col']
         # 2*self.ROWS*self.COLS, small values can cause problem for some
         # planning techniques

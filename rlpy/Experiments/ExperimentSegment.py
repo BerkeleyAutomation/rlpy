@@ -268,7 +268,6 @@ class ExperimentSegment(Experiment):
             function.
 
         """
-
         if debug_on_sigurg:
             rlpy.Tools.ipshell.ipdb_on_SIGURG()
         self.performance_domain = deepcopy(self.domain)
@@ -296,6 +295,9 @@ class ExperimentSegment(Experiment):
         terminal = True
         while total_steps < self.max_steps:
             if terminal or eps_steps >= self.domain.episodeCap:
+                if className(self.domain) == "GridWorldInter":
+                    self.domain.map = deepcopy(self.performance_domain.map) # get a copy of the original map
+
                 s, terminal, p_actions = self.domain.s0()
                 a = self.agent.policy.pi(s, terminal, p_actions)
                 # Visual
@@ -335,12 +337,13 @@ class ExperimentSegment(Experiment):
             # learning
             self.agent.learn(s, p_actions, a, r, ns, np_actions, na, terminal)
             s, a, p_actions = ns, na, np_actions
+
             # Visual
             if visualize_steps:
                 self.domain.show(a, self.agent.representation)
 
             # Check Performance
-            if total_steps % (self.max_steps / self.num_policy_checks) == 0:
+            if self.num_policy_checks > 0 and total_steps % (self.max_steps / self.num_policy_checks) == 0:
                 print "Current episode", episode_number
                 self.elapsed_time = deltaT(
                     self.start_time) - self.total_eval_time
@@ -358,6 +361,7 @@ class ExperimentSegment(Experiment):
                     self.elapsed_time - \
                     self.total_eval_time
                 start_log_time = clock()
+                # print (self.cur_v() * 100).astype(np.int64)
 
         # Visual
         if visualize_steps:
@@ -386,7 +390,7 @@ class ExperimentSegment(Experiment):
                     V[r, c] = d.MAX_RETURN
                 if d.map[r, c] == d.PIT:
                     V[r, c] = d.MIN_RETURN
-                if d.map[r, c] == d.EMPTY or d.map[r, c] == d.START:
+                if d.map[r, c] == d.EMPTY or d.map[r, c] == d.START or (className(self.domain) == "GridWorldInter" and d.map[r, c] == d.DOOR):
                     s = np.array([r, c])
                     As = d.possibleActions(s)
                     terminal = d.isTerminal(s)
@@ -465,7 +469,7 @@ class ExperimentSegment(Experiment):
         np.random.set_state(random_state)
         #self.domain.rand_state = random_state_domain
 
-    def saveWeights(self):
+    def saveWeights(self, path=None):
         """Saves the weights of the representation to be transferred to another MDP"""
         import pickle
         results_fn = os.path.join(self.full_path, "weights.p")
