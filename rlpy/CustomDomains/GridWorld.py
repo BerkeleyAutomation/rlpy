@@ -86,6 +86,7 @@ class GridWorld(Domain):
             [[0, self.ROWS - 1], [0, self.COLS - 1]])
         self.NOISE = noise
         self.STEP_REWARD = step_reward
+        print self.STEP_REWARD
         self.DimNames = ['Row', 'Col']
         # 2*self.ROWS*self.COLS, small values can cause problem for some
         # planning techniques
