@@ -4,6 +4,7 @@
 # from .PuddleWorld import PuddleWorld
 from .GridWorld import GridWorld
 from .GridWorldInter import GridWorldInter
+from .GridWorldTime import GridWorldTime
 # from .BlocksWorld import BlocksWorld
 # from .MountainCar import MountainCar
 # from .ChainMDP import ChainMDP
