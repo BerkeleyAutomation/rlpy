@@ -16,6 +16,7 @@ import rlpy.Tools.ipshell
 import json
 from collections import defaultdict
 from Experiment import Experiment
+from rlpy.CustomDomains import GridWorldTime
 
 __copyright__ = "Copyright 2013, RLPy http://acl.mit.edu/RLPy"
 __credits__ = ["Alborz Geramifard", "Robert H. Klein", "Christoph Dann",
@@ -35,6 +36,8 @@ class ExperimentSegment(Experiment):
     :py:class:`~Domains.Domain.Domain`, restarting after some termination
     condition is reached.
     (The sequence of steps between terminations is known as an *episode*.)
+
+    This class is specifically framed around the GridWorldTime class.
 
     Each time the Agent attempts to solve the task, it learns more about how
     to accomplish its goal. The experiment controls this loop of "training
@@ -125,6 +128,9 @@ class ExperimentSegment(Experiment):
         self.max_eps = max_eps
         self.num_policy_checks = num_policy_checks
         self.logger = logging.getLogger("rlpy.Experiments.Experiment")
+
+        logging.disable(40)
+
         self.log_interval = log_interval
         self.config_logging = config_logging
         self.path = path
@@ -162,10 +168,9 @@ class ExperimentSegment(Experiment):
         self.agent.policy.turnOffExploration()
         temp_performance_domain = deepcopy(self.performance_domain) ##Modification here
 
-        #### CHECK that steps are reset to 0
-        import ipdb; ipdb.set_trace()
-        ##########
-        
+        # #### CHECK that steps are reset to 0
+        # import ipdb; ipdb.set_trace()
+        # ##########
         s, eps_term, p_actions = temp_performance_domain.s0()
 
         while not eps_term and eps_length < self.domain.episodeCap:
@@ -289,17 +294,15 @@ class ExperimentSegment(Experiment):
         self.start_time = clock()
         self.elapsed_time = 0
         # do a first evaluation to get the quality of the inital policy
-        self.evaluate(total_steps, episode_number, visualize_performance)
+        # self.evaluate(total_steps, episode_number, visualize_performance)
         self.total_eval_time = 0.
         terminal = True
-        while episode_number < self.max_eps:
+        while episode_number <= self.max_eps:
             if terminal or eps_steps >= self.domain.episodeCap:
                 # Check Performance
                 if self.num_policy_checks > 0 and episode_number % (self.max_eps / self.num_policy_checks) == 0:
-                    print "Current episode", episode_number
-
                     # show policy or value function
-                    if visualize_learning: # or total_steps == 1200:
+                    if visualize_learning: #or episode_number == 400:
                         self.domain.showLearning(self.agent.representation)
 
                     self.evaluate(
@@ -323,6 +326,10 @@ class ExperimentSegment(Experiment):
                 eps_return = 0
                 eps_steps = 0
                 episode_number += 1
+
+                # if episode_number == 4000 and self.domain.map[1, 7] < 10:
+                #     import ipdb; ipdb.set_trace()
+                #     self.agent.policy.epsilon += 0.05
             # Act,Step
             r, ns, terminal, np_actions = self.domain.step(a)
 
@@ -396,16 +403,17 @@ class ExperimentSegment(Experiment):
             self.result = self.agent.STATS
             return
 
+        # print "EPISODE NUMBER {}".format(episode_number)
+        # print (self.cur_v()).astype(np.int64)
+        # print "Learn rate: {}".format(self.agent.learn_rate)
+
         random_state = np.random.get_state()
-        #random_state_domain = copy(self.domain.random_state)
         elapsedTime = deltaT(self.start_time)
         performance_return = 0.
         performance_steps = 0.
         performance_term = 0.
         performance_discounted_return = 0.
         for j in xrange(self.checks_per_policy):
-            # p_ret, p_step, p_term, p_dret = self.performanceRun(
-                # total_steps, visualize=visualize > j)
             if saveTrajectories and j == 0:
                 p_ret, p_step, p_term, p_dret = self.dcperformanceRun(
                     visualize=visualize > j, saveTrajectories=True, current_steps=total_steps)
@@ -447,7 +455,6 @@ class ExperimentSegment(Experiment):
         """Saves the weights of the representation to be transferred to another MDP"""
         import pickle
         results_fn = os.path.join(self.full_path, "weights.p")
-        print results_fn
         if not os.path.exists(self.full_path):
             os.makedirs(self.full_path)
         with open(results_fn, "w") as f:

@@ -78,7 +78,7 @@ class GridWorldTime(Domain):
         "GridWorldMaps")
 
     def __init__(self, mapname=os.path.join(default_map_dir, "4x5.txt"),
-                 noise=.1, episodeCap=50, step_reward=-0.001, door_reward=None):
+                 noise=.1, episodeCap=30, step_reward=-0.001, door_reward=None):
         self.map = np.loadtxt(mapname, dtype=np.uint8)
         if self.map.ndim == 1:
             self.map = self.map[np.newaxis, :]
@@ -92,16 +92,19 @@ class GridWorldTime(Domain):
         # 2*self.ROWS*self.COLS, small values can cause problem for some
         # planning techniques
 
-        ##Only for Graphical Normalization
-        self.MAX_RETURN = episodeCap
-        self.RMAX = self.MAX_RETURN
-
-        self.episodeCap = episodeCap 
-
         self.GOAL_REWARD = episodeCap #TODO Fix
+        self.PIT_REWARD = -self.GOAL_REWARD / 2
+        self.STEP_REWARD = step_reward
         self.DOOR_REWARD = door_reward
         self.steps = 0
 
+
+        ##Only for Graphical Normalization TODO - fix
+        self.MAX_RETURN = self.GOAL_REWARD
+        self.MIN_RETURN = self.PIT_REWARD 
+        self.RMAX = self.MAX_RETURN
+
+        self.episodeCap = episodeCap 
         super(GridWorldTime, self).__init__()
 
     def showDomain(self, a=0, s=None):
@@ -288,14 +291,14 @@ class GridWorldTime(Domain):
         self.valueFunction_fig.set_data(V)
 
 
-        ### DEBUG ####
-        import pickle; 
-        temp_path = "./Results/GradientCheck/"
-        if not os.path.exists(temp_path):
-            os.makedirs(temp_path)
-        with open(temp_path + "SR.p", "w") as f:
-            pickle.dump(V, f)
-        ####
+        # ### DEBUG ####
+        # import pickle; 
+        # temp_path = "./Results/GradientCheck/"
+        # if not os.path.exists(temp_path):
+        #     os.makedirs(temp_path)
+        # with open(temp_path + "SR.p", "w") as f:
+        #     pickle.dump(V, f)
+        # ####
 
         # Show Policy Up Arrows
         DX = arrowSize[:, :, 0]
@@ -328,14 +331,16 @@ class GridWorldTime(Domain):
         plt.draw()
 
     def terminal_reward(self):
-        return self.GOAL_REWARD - self.steps
+        return (2 * self.GOAL_REWARD - self.steps) 
 
-    def reset_steps():
+    def reset_steps(self):
         self.steps = 0
 
     def step(self, a):
         r = self.STEP_REWARD
         ns = self.state.copy()
+        # if (ns == [1, 8]).all():
+            # import ipdb; ipdb.set_trace()
         if self.random_state.random_sample() < self.NOISE:
             # Random Move
             a = self.random_state.choice(self.possibleActions())
@@ -355,7 +360,8 @@ class GridWorldTime(Domain):
         # Compute the reward
         if self.map[ns[0], ns[1]] == self.DOOR:
             r = self.DOOR_REWARD + self.STEP_REWARD
-            self.map[ns[0], ns[1]] = self.EMPTY # can only obtain once ... make sure this doesn't persist through trials
+            #self.map[ns[0], ns[1]] = self.EMPTY # can only obtain once ... make sure this doesn't persist through trials
+            self.map[self.map == self.DOOR] = self.EMPTY
         if self.map[ns[0], ns[1]] == self.GOAL:
             r = self.terminal_reward()
         if self.map[ns[0], ns[1]] == self.PIT:
