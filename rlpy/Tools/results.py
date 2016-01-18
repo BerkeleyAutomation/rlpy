@@ -71,6 +71,7 @@ def get_all_result_paths(path, min_num=1):
         dirname = p[0]
         if contains_results(dirname, min_num):
             exp_paths.append(dirname)
+    return exp_paths
 
 
 def load_results(path):
