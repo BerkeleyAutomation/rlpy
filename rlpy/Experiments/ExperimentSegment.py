@@ -92,16 +92,16 @@ class ExperimentSegment(Experiment):
     log_interval = 0  # Number of seconds between log prints to console
 
     log_template = '{total_steps: >6}: Eps {episode_number}: Return={totreturn: >10.4g}, Steps={steps: >4}, Features = {num_feat}'
-    performance_log_template = '{total_steps: >6}: >>>Eps {episode_number}: Return={totreturn: >10.4g}, Steps={steps: >4}, Features = {num_feat}'
+    performance_log_template = '{total_steps: >6}: >>>Eps {episode_number}: Return={totreturn: >10.4g}, Steps={steps: >4}, Features = {num_feat}, Learning Rate={rate}'
 
-    def __init__(self, agent, domain, eval_domain, exp_id=1, max_eps=1000,
+    def __init__(self, agent, domain, performance_domain=None, exp_id=1, max_eps=1000,
                  config_logging=True, num_policy_checks=10, log_interval=1,
                  path='Results/Temp',
                  checks_per_policy=1, stat_bins_per_state_dim=0, **kwargs):
         """
         :param agent: the :py:class:`~Agents.Agent.Agent` to use for learning the task.
         :param domain: the problem :py:class:`~Domains.Domain.Domain` to learn
-        :param eval_domain: the original MDP that we should evaluate the agent on
+        :param performance_domain: the original MDP that we should evaluate the agent on
         :param exp_id: ID of this experiment (main seed used for calls to np.rand)
         :param max_eps: Total number of policy rollouts to be done
 
@@ -119,17 +119,27 @@ class ExperimentSegment(Experiment):
         self.agent = agent
         self.checks_per_policy = checks_per_policy
 
-        assert np.array_equal(np.argwhere(domain.map == domain.GOAL), 
-                            np.argwhere(eval_domain.map == eval_domain.GOAL))
+        # assert np.array_equal(np.argwhere(domain.map == domain.GOAL), 
+        #                     np.argwhere(performance_domain.map == performance_domain.GOAL))
 
-        self.domain = domain
-        self.eval_domain = eval_domain
+        self.domain = domain #training domain
+
+        if hasattr(domain, "map"): #TEMP
+            self.train_map = domain.map
+        if performance_domain is None:
+            performance_domain = domain
+            print "Evaluating with default domain"
+        
+        self.performance_domain = performance_domain
+        
+        if hasattr(domain, "map"): #TEMP
+            self.performance_map = performance_domain.map # for DC performance trials
 
         self.max_eps = max_eps
         self.num_policy_checks = num_policy_checks
         self.logger = logging.getLogger("rlpy.Experiments.Experiment")
 
-        logging.disable(40)
+        # logging.disable(40)
 
         self.log_interval = log_interval
         self.config_logging = config_logging
@@ -166,29 +176,28 @@ class ExperimentSegment(Experiment):
         eps_term = 0
 
         self.agent.policy.turnOffExploration()
-        temp_performance_domain = deepcopy(self.performance_domain) ##Modification here
 
-        # #### CHECK that steps are reset to 0
-        # import ipdb; ipdb.set_trace()
-        # ##########
-        s, eps_term, p_actions = temp_performance_domain.s0()
+        if hasattr(self, "performance_map"): # temp
+            self.performance_domain.map = deepcopy(self.performance_map) ##Modification here
+
+        s, eps_term, p_actions = self.performance_domain.s0()
 
         while not eps_term and eps_length < self.domain.episodeCap:
             if saveTrajectories:
                 self.perform_trajs[current_steps].append(s) #TODO: move somewhere else
             a = self.agent.policy.pi(s, eps_term, p_actions)
             if visualize:
-                temp_performance_domain.showDomain(a)
+                self.performance_domain.showDomain(a)
 
-            r, ns, eps_term, p_actions = temp_performance_domain.step(a)
+            r, ns, eps_term, p_actions = self.performance_domain.step(a)
                 
             self._gather_transition_statistics(s, a, ns, r, learning=False)
             s = ns
             eps_return += r
-            eps_discount_return += temp_performance_domain.discount_factor ** eps_length * r
+            eps_discount_return += self.performance_domain.discount_factor ** eps_length * r
             eps_length += 1
         if visualize:
-            temp_performance_domain.showDomain(a)
+            self.performance_domain.showDomain(a)
         self.agent.policy.turnOnExploration()
         # This hidden state is for domains (such as the noise in the helicopter domain) that include unobservable elements that are evolving over time
         # Ideally the domain should be formulated as a POMDP but we are trying
@@ -272,9 +281,6 @@ class ExperimentSegment(Experiment):
         if debug_on_sigurg:
             rlpy.Tools.ipshell.ipdb_on_SIGURG()
 
-        self.train_domain = deepcopy(self.domain)
-        self.performance_domain = deepcopy(self.eval_domain) #TODO: Redundant copying
-
         self.seed_components()
 
         self.result = defaultdict(list)
@@ -311,7 +317,13 @@ class ExperimentSegment(Experiment):
                         visualize_performance,
                         saveTrajectories)
 
-                self.domain.map = deepcopy(self.train_domain.map) # get a copy of the original map
+                    if episode_number % 1000 == 0:
+                        _temp = (100*self.RCCur_V()).astype(np.int32)
+                        np.set_printoptions(linewidth=150)
+                        print _temp
+
+                if hasattr(self, "train_map"): #TEMP
+                    self.domain.map = deepcopy(self.train_map)
 
                 if isinstance(self.domain, GridWorldTime):
                     self.domain.reset_steps()
@@ -327,9 +339,6 @@ class ExperimentSegment(Experiment):
                 eps_steps = 0
                 episode_number += 1
 
-                # if episode_number == 4000 and self.domain.map[1, 7] < 10:
-                #     import ipdb; ipdb.set_trace()
-                #     self.agent.policy.epsilon += 0.05
             # Act,Step
             r, ns, terminal, np_actions = self.domain.step(a)
 
@@ -363,7 +372,7 @@ class ExperimentSegment(Experiment):
             with open(results_fn, "w") as f:
                 json.dump(self.perform_trajs, f)
 
-    def cur_v(self, performance=True):
+    def GWCur_V(self, performance=True):
         ''':param performance: Will only be evaluated on performance domain (not on the training environment); should not change though'''
         
         d = deepcopy(self.performance_domain if performance else self.train_domain)
@@ -386,7 +395,27 @@ class ExperimentSegment(Experiment):
                     V[r, c] = max(Qs[As])
         return V
 
-                
+    def RCCur_V(self, performance=True):
+        ''':param performance: Will only be evaluated on performance domain (not on the training environment); should not change though'''
+        rep = self.agent.representation
+        d = deepcopy(self.domain)
+        dn = rep.discretization
+        V = np.zeros((dn, dn))
+        As = d.possibleActions()
+
+        bin_to_x = lambda b: b*rep.binWidth_per_dim[0] + d.XMIN
+        bin_to_y = lambda b: b*rep.binWidth_per_dim[1] + d.YMIN
+        bin_to_speed = lambda b: b*rep.binWidth_per_dim[2] + d.SPEEDMIN
+        bin_to_head = lambda b: b*rep.binWidth_per_dim[3] + d.HEADINGMIN
+        # may need to add 0.01 to avoid weird numerical errors
+        for ybin in xrange(dn):
+            _ybin = dn - ybin - 1 # start from top
+            for xbin in xrange(dn):
+                x = bin_to_x(xbin)
+                y = bin_to_y(_ybin)
+                states = filter(lambda s: rep.hashState(s) in rep.hash, ([x, y, bin_to_speed(sbin), bin_to_head(hbin)] for sbin in xrange(dn) for hbin in xrange(dn)))
+                V[ybin, xbin] = sum(max(rep.Qs(s, False)) for s in states) / len(states) if len(states) > 0 else 0
+        return V                
  
     def evaluate(self, total_steps, episode_number, visualize=0, saveTrajectories=False):
         """
@@ -403,8 +432,8 @@ class ExperimentSegment(Experiment):
             self.result = self.agent.STATS
             return
 
-        # print "EPISODE NUMBER {}".format(episode_number)
-        # print (self.cur_v()).astype(np.int64)
+        print "EPISODE NUMBER {}".format(episode_number)
+        # print (self.GWCur_V()).astype(np.int64)
         # print "Learn rate: {}".format(self.agent.learn_rate)
 
         random_state = np.random.get_state()
@@ -418,8 +447,8 @@ class ExperimentSegment(Experiment):
                 p_ret, p_step, p_term, p_dret = self.dcperformanceRun(
                     visualize=visualize > j, saveTrajectories=True, current_steps=total_steps)
             else:
-                p_ret, p_step, p_term, p_dret = self.dcperformanceRun(
-                    visualize=visualize > j)
+                p_ret, p_step, p_term, p_dret = self.performanceRun( #temp change back from dcperformance bc matplotlib
+                    0, visualize=visualize > j)
 
             performance_return += p_ret
             performance_steps += p_step
@@ -446,7 +475,8 @@ class ExperimentSegment(Experiment):
                                                  total_steps=total_steps,
                                                  totreturn=performance_return,
                                                  steps=performance_steps,
-                                                 num_feat=self.agent.representation.features_num))
+                                                 num_feat=self.agent.representation.features_num,
+                                                 rate=self.agent.learn_rate))
 
         np.random.set_state(random_state)
         #self.domain.rand_state = random_state_domain

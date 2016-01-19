@@ -5,6 +5,8 @@
 from .GridWorld import GridWorld
 from .GridWorldInter import GridWorldInter
 from .GridWorldTime import GridWorldTime
+from .TestRCCar import TestRCCar
+from .RCSegment import RCSegment
 # from .BlocksWorld import BlocksWorld
 # from .MountainCar import MountainCar
 # from .ChainMDP import ChainMDP
