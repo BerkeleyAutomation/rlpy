@@ -5,6 +5,7 @@ import matplotlib as mpl
 from .Domain import Domain
 from copy import deepcopy
 import numpy as np
+import pickle
 
 __author__ = "Alborz Geramifard"
 
@@ -62,9 +63,11 @@ class RCSegment(Domain):
     #REWARDS
     STEP_REWARD = -0.1
 
-    GOAL_REWARD = 0.5
+    GOAL_REWARD = 5
     GOAL = [.5, .3]
     GOAL_RADIUS = .1
+
+    SEG_REWARD = 0.1
 
     GOAL_ORIENT = np.pi / 3 #orientation needed - assuming starts at 0 and turning left is positive
     GOAL_ORIENT_BOUND = 0.2
@@ -110,7 +113,10 @@ class RCSegment(Domain):
             assert self.map.shape == (20, 20) # no access to the discretization parameter?
             assert self.get_bin(self.GOAL) not in np.argwhere(self.map == self.BLOCKED)
             self.calculate_protrusions()
-            self.rewards = np.loadtxt(rewardfile, dtype=np.float_)
+
+        if rewardfile:
+            with open(rewardfile, "r") as f:
+                self.rewards = pickle.load(f)
 
         self.with_segment = (rewardfile is not None)
         self.with_collision = with_collision
@@ -162,7 +168,7 @@ class RCSegment(Domain):
 
         if self.with_segment:
             if self.get_segmented_reward():
-                r += self.SEG_REWARD
+                r += self.SEG_REWARD * (20 - len(self.cur_rewards))
 
         terminal = self.isTerminal()
         if (self.with_collision and self.collided(self.state)):
@@ -170,12 +176,13 @@ class RCSegment(Domain):
             terminal = True
         elif terminal:
             r += self.GOAL_REWARD
-            terminal = False #terminal debug
+            # terminal = False #terminal debug
         return r, ns, terminal, self.possibleActions()
 
     def s0(self):
         self.state = self.INIT_STATE.copy()
-        self.reset_rewards()
+        if self.rewards is not None:
+            self.reset_rewards()
         return self.state.copy(), self.isTerminal(), self.possibleActions()
 
     def isTerminal(self):
@@ -183,10 +190,14 @@ class RCSegment(Domain):
 
     def get_segmented_reward(self): # may want to make this into a trajectory rather than 
         # currently only takes one solution; could technically start on reward path in the middle of exectuion
+        if len(self.cur_rewards) == 0:
+            return False
         seg = self.cur_rewards[0]
-        if (np.linalg.norm(self.state[:2] - seg) < self.GOAL_RADIUS
+        if (np.linalg.norm(self.state[:2] - seg[:2]) < self.GOAL_RADIUS
             and abs(self.state[3] - seg[3]) < self.GOAL_ORIENT_BOUND): # may need to constrict angle too
-            return self.cur_rewards.pop(0)
+            reward = self.cur_rewards[0]
+            self.cur_rewards = self.cur_rewards[1:]
+            return True
         return False
 
     def at_goal(self):
@@ -296,6 +307,16 @@ class RCSegment(Domain):
                 radius=self.GOAL_RADIUS,
                 color='g',
                 alpha=.4))
+
+        for reward in self.rewards:
+            plt.gca(
+            ).add_patch(
+                plt.Circle(
+                    reward[:2],
+                    radius=self.GOAL_RADIUS,
+                    color='y',
+                    alpha=.4))
+
         _plt.xlim([self.XMIN, self.XMAX])
         _plt.ylim([self.YMIN, self.YMAX])
         _plt.gca().set_aspect('1')
@@ -330,6 +351,27 @@ class RCSegment(Domain):
                     radius=self.GOAL_RADIUS,
                     color='g',
                     alpha=.4))
+
+            for reward in self.rewards:
+                plt.gca(
+                ).add_patch(
+                    plt.Circle(
+                        reward[:2],
+                        radius=self.GOAL_RADIUS,
+                        color='y',
+                        alpha=.4))
+
+            for block in np.argwhere(self.map == self.BLOCKED):
+                wall_xmin, wall_ymin = block
+                plt.gca().add_patch( 
+                    mpatches.Rectangle(
+                        [wall_xmin,
+                         wall_ymin],
+                        self.XBIN,
+                        self.YBIN,
+                        alpha=.4)
+                    )
+
             plt.xlim([self.XMIN, self.XMAX])
             plt.ylim([self.YMIN, self.YMAX])
             plt.gca().set_aspect('1')
