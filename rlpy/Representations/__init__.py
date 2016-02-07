@@ -1,5 +1,6 @@
 from .Tabular import Tabular
 from .IncrementalTabular import IncrementalTabular
+from .CustomIncreTabular import CustomIncreTabular
 from .IndependentDiscretization import IndependentDiscretization
 from .IndependentDiscretizationCompactBinary import IndependentDiscretizationCompactBinary
 from .RBF import RBF

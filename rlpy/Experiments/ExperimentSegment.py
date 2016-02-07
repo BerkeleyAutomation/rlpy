@@ -227,7 +227,7 @@ class ExperimentSegment(Experiment):
 
         s, eps_term, p_actions = self.performance_domain.s0()
 
-        while not eps_term and eps_length < self.domain.episodeCap:
+        while not eps_term and eps_length < self.performance_domain.episodeCap:
             a = self.agent.policy.pi(s, eps_term, p_actions)
             if visualize:
                 self.performance_domain.showDomain(a)
@@ -317,16 +317,13 @@ class ExperimentSegment(Experiment):
                         visualize_performance,
                         saveTrajectories)
 
-                    if episode_number % 1000 == 0:
-                        _temp = (100*self.RCCur_V()).astype(np.int32)
-                        np.set_printoptions(linewidth=150)
-                        print _temp
+                    _temp = (100*self.RCCur_V()).astype(np.int32)
+                    np.set_printoptions(linewidth=150)
+                    print _temp
 
                 if hasattr(self, "train_map"): #TEMP
                     self.domain.map = deepcopy(self.train_map)
 
-                if isinstance(self.domain, GridWorldTime):
-                    self.domain.reset_steps()
                 s, terminal, p_actions = self.domain.s0()
                 a = self.agent.policy.pi(s, terminal, p_actions)
                 # Visual
@@ -435,6 +432,8 @@ class ExperimentSegment(Experiment):
         print "EPISODE NUMBER {}".format(episode_number)
         # print (self.GWCur_V()).astype(np.int64)
         # print "Learn rate: {}".format(self.agent.learn_rate)
+        if episode_number == 80:
+            visualize = 1
 
         random_state = np.random.get_state()
         elapsedTime = deltaT(self.start_time)
@@ -450,6 +449,7 @@ class ExperimentSegment(Experiment):
                 p_ret, p_step, p_term, p_dret = self.performanceRun( #temp change back from dcperformance bc matplotlib
                     0, visualize=visualize > j)
 
+            print p_ret, p_step, p_term
             performance_return += p_ret
             performance_steps += p_step
             performance_term += p_term

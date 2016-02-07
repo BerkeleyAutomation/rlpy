@@ -62,17 +62,15 @@ class RCSegment(Domain):
 
     #REWARDS
     STEP_REWARD = -0.1
-
     GOAL_REWARD = 5
-    GOAL = [.5, .3]
+    GOAL = [0, .4, 0, np.pi]
     GOAL_RADIUS = .1
 
     SEG_REWARD = 0.1
 
-    GOAL_ORIENT = np.pi / 3 #orientation needed - assuming starts at 0 and turning left is positive
     GOAL_ORIENT_BOUND = 0.2
 
-    rewards = None
+    rewards = []
     cur_rewards = None
 
     COLLIDE_REWARD = -1
@@ -96,7 +94,11 @@ class RCSegment(Domain):
 
     EMPTY, BLOCKED = range(2)
 
-    def __init__(self, noise=0, discretize=20, with_collision=False, mapname=None, episodeCap=200, rewardfile=None):
+    def __init__(self, goal=[0.5, 0.3], 
+                    noise=0, discretize=20, with_collision=False, 
+                    mapname=None, episodeCap=200, rewardfile=None,
+                    goal_radius=None, orientation_bound=None,
+                    goal_reward=None, collide_reward=None, step_reward=None):
         self.map = None
         self.statespace_limits = np.array(
             [[self.XMIN,
@@ -107,7 +109,21 @@ class RCSegment(Domain):
              self.SPEEDMAX],
             [self.HEADINGMIN,
              self.HEADINGMAX]])
+        self.episodeCap = episodeCap
         self.noise = noise
+        self.GOAL = np.array(goal) # currently no bound on acceleration
+
+        if goal_radius:
+            self.GOAL_RADIUS = goal_radius
+        if orientation_bound:
+            self.GOAL_ORIENT_BOUND = orientation_bound
+        if goal_reward:
+            self.GOAL_REWARD = goal_reward
+        if collide_reward:
+            self.COLLIDE_REWARD = collide_reward
+        if step_reward:
+            self.STEP_REWARD = step_reward
+
         if mapname:
             self.map = np.loadtxt(mapname, dtype=np.uint8)
             assert self.map.shape == (20, 20) # no access to the discretization parameter?
@@ -120,11 +136,28 @@ class RCSegment(Domain):
 
         self.with_segment = (rewardfile is not None)
         self.with_collision = with_collision
-        self.episodeCap = episodeCap
         super(RCSegment, self).__init__()
 
     def step(self, a):
-        x, y, speed, heading = self.state
+        ns = self.simulate_step(self.state, a)
+        r = self.STEP_REWARD
+        self.state = ns.copy()
+
+        if self.with_segment:
+            if self.get_segmented_reward():
+                r += self.SEG_REWARD * (50 - len(self.cur_rewards)) # need to make this portable
+
+        terminal = self.isTerminal()
+        if (self.with_collision and self.collided(self.state)):
+            r += self.COLLIDE_REWARD
+            terminal = True
+        elif terminal:
+            r += self.GOAL_REWARD
+            # terminal = False #terminal debug
+        return r, ns, terminal, self.possibleActions()
+
+    def simulate_step(self, state, a):
+        x, y, speed, heading = state
         # Map a number between [0,8] to a pair. The first element is
         # acceleration direction. The second one is the indicator for the wheel
         acc, turn = id2vec(a, [3, 3])
@@ -137,8 +170,6 @@ class RCSegment(Domain):
         nspeed = speed + acc * self.ACCELERATION * self.delta_t
         nheading    = heading + speed / self.CAR_LENGTH * \
             np.tan(turn * self.TURN_ANGLE) * self.delta_t
-
-        r = self.STEP_REWARD
 
         # Bound values
         nx = bound(nx, self.XMIN, self.XMAX)
@@ -163,25 +194,19 @@ class RCSegment(Domain):
                 nspeed = 0
                 #bind nx, ny to negate movement
 
-        ns = np.array([nx, ny, nspeed, nheading])
-        self.state = ns.copy()
+        return np.array([nx, ny, nspeed, nheading])
 
-        if self.with_segment:
-            if self.get_segmented_reward():
-                r += self.SEG_REWARD * (20 - len(self.cur_rewards))
 
-        terminal = self.isTerminal()
-        if (self.with_collision and self.collided(self.state)):
-            r += self.COLLIDE_REWARD
-            terminal = True
-        elif terminal:
-            r += self.GOAL_REWARD
-            # terminal = False #terminal debug
-        return r, ns, terminal, self.possibleActions()
+    def closeness(self, state):
+        head = state[3]
+        cosine_sim = lambda a, b: (np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+        orient = np.array([np.cos(head), np.sin(head)])
+        dgoal = np.subtract(self.GOAL[:2], state[:2])
+        return cosine_sim(orient, dgoal)
 
     def s0(self):
         self.state = self.INIT_STATE.copy()
-        if self.rewards is not None:
+        if len(self.rewards):
             self.reset_rewards()
         return self.state.copy(), self.isTerminal(), self.possibleActions()
 
@@ -202,8 +227,8 @@ class RCSegment(Domain):
 
     def at_goal(self):
         """Check if current state is at goal"""
-        return (np.linalg.norm(self.state[0:2] - self.GOAL) < self.GOAL_RADIUS
-            and abs(self.state[3] - self.GOAL_ORIENT) < self.GOAL_ORIENT_BOUND)
+        return (np.linalg.norm(self.state[:2] - self.GOAL[:2]) < self.GOAL_RADIUS
+            and abs(self.state[3] - self.GOAL[3]) < self.GOAL_ORIENT_BOUND)
 
     def collided(self, state):
         """Given a car state, check if collided with walls"""
