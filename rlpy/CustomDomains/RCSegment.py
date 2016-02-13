@@ -138,14 +138,21 @@ class RCSegment(Domain):
         self.with_collision = with_collision
         super(RCSegment, self).__init__()
 
+
+    def calculate(self, state):
+        delt = - np.linalg.norm(state[:2] - self.GOAL[:2]) ** 2 # may need to make goal full
+        orient = 0 #1./(self.domain.GOAL[3] - state[3]) 
+        trajdist = self.closeness(state) #hi = closer
+        return (delt + orient + 2 * trajdist) * 0.01
+
     def step(self, a):
         ns = self.simulate_step(self.state, a)
-        r = self.STEP_REWARD
+        r = self.calculate(ns)
         self.state = ns.copy()
 
-        if self.with_segment:
-            if self.get_segmented_reward():
-                r += self.SEG_REWARD * (50 - len(self.cur_rewards)) # need to make this portable
+        # if self.with_segment:
+        #     if self.get_segmented_reward():
+        #         r += self.SEG_REWARD * (50 - len(self.cur_rewards)) # need to make this portable
 
         terminal = self.isTerminal()
         if (self.with_collision and self.collided(self.state)):
