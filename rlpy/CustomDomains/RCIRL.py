@@ -5,43 +5,52 @@ consumable rewards
 import os,sys,inspect
 from rlpy.Tools import __rlpy_location__, findElemArray1D, perms
 from rlpy.Domains.Domain import Domain
+# from rlpy.Domains import RCCar
 import numpy as np
 from rlpy.Tools import plt, FONTSIZE, linearMap
 
 class RCIRL(Domain): 
-    # #__metaclass__ = Domain
     # #default paths
     # currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
     # default_map_dir = os.path.join(currentdir,"ConsumableGridWorldMaps")
 
-    # map = start_state = goal = None
-    # # Used for graphics to show the domain
-    # agent_fig = upArrows_fig = downArrows_fig = leftArrows_fig = None
-    # rightArrows_fig = domain_fig = valueFunction_fig = None
-    # #: Number of rows and columns of the map
-    # ROWS = COLS = 0
-    # #: Reward constants
-    # GOAL_REWARD = +1
-    # PIT_REWARD = -1
-    # STEP_REWARD = -.001
-    # #: Set by the domain = min(100,rows*cols)
-    # episodeCap = None
-    # #: Movement Noise
-    # NOISE = 0
-    # # Used for graphical normalization
-    # MAX_RETURN = 1
-    # RMAX = MAX_RETURN
-    # # Used for graphical normalization
-    # MIN_RETURN = -1
-    # # Used for graphical shifting of arrows
-    # SHIFT = .1
-    # #MAX_STEPS = min(100,rows*cols)
+    actions_num = 9
+    state_space_dims = 4
+    continuous_dims = np.arange(state_space_dims)
 
-    # actions_num = 4
-    # # Constants in the map
-    # EMPTY, BLOCKED, START, GOAL, PIT, AGENT = range(6)
-    # #: Up, Down, Left, Right
-    # ACTIONS = np.array([[-1, 0], [+1, 0], [0, -1], [0, +1]])
+    ROOM_WIDTH = 3  # in meters
+    ROOM_HEIGHT = 2  # in meters
+    XMIN = -ROOM_WIDTH / 2.0
+    XMAX = ROOM_WIDTH / 2.0
+    YMIN = -ROOM_HEIGHT / 2.0
+    YMAX = ROOM_HEIGHT / 2.0
+    ACCELERATION = .1
+    TURN_ANGLE = np.pi / 6
+    SPEEDMIN = -.3
+    SPEEDMAX = .3
+    HEADINGMIN = -np.pi
+    HEADINGMAX = np.pi
+    INIT_STATE = np.array([0.0, 0.0, 0.0, 0.0])
+    STEP_REWARD = -1
+    GOAL_REWARD = 0
+    GOAL = [.5, .5]
+    GOAL_RADIUS = .1
+    actions = np.outer([-1, 0, 1], [-1, 0, 1])
+    discount_factor = .9
+    episodeCap = 10000
+    delta_t = .1  # time between steps
+    CAR_LENGTH = .3  # L on the webpage
+    CAR_WIDTH = .15
+    # The location of rear wheels if the car facing right with heading 0
+    REAR_WHEEL_RELATIVE_LOC = .05
+    # Used for visual stuff:
+    domain_fig = None
+    X_discretization = 20
+    Y_discretization = 20
+    SPEED_discretization = 5
+    HEADING_discretization = 3
+    ARROW_LENGTH = .2
+    car_fig = None
 
 
     # #an encoding function maps a set of previous states to a fixed
@@ -52,61 +61,53 @@ class RCIRL(Domain):
     # the step reward constant, 
     # and the goal reward constant.
     # """
-    # def __init__(self, 
-    #              goalArray, 
-    # 			 mapname=os.path.join(default_map_dir, "4x5.txt"),
-    #              encodingFunction=None,
-    #              rewardFunction=None,
-    #              noise=.1, 
-    #              episodeCap=None):
+    def __init__(self, 
+                 goalArray, 
+    			 mapname=os.path.join(default_map_dir, "4x5.txt"),
+                 encodingFunction=ConsumableGridWorldIRL.allMarkovEncoding,
+                 rewardFunction=None,
+                 noise=.1, 
+                 episodeCap=None):
        
-    #     #setup consumable rewards
-    #     self.map = np.loadtxt(mapname, dtype=np.uint8)
-    #     self.goalArray0 = np.array(goalArray)
-    #     self.goalArray = np.array(goalArray)
-    #     self.prev_states = []
+        #setup consumable rewards
+        self.statespace_limits = np.array(
+            [[self.XMIN,
+              self.XMAX],
+             [self.YMIN,
+              self.YMAX],
+                [self.SPEEDMIN,
+                 self.SPEEDMAX],
+                [self.HEADINGMIN,
+                 self.HEADINGMAX]])
 
-    #     if encodingFunction == None:
-    #         self.encodingFunction = ConsumableGridWorldIRL.allMarkovEncoding
-    #     else:
-    #         self.encodingFunction = encodingFunction
+        self.goalArray0 = np.array(goalArray)
+        self.goalArray = np.array(goalArray)
+        self.prev_states = []
 
-    #     self.rewardFunction = rewardFunction
+        self.encodingFunction = encodingFunction
 
-    #     if self.map.ndim == 1:
-    #         self.map = self.map[np.newaxis, :]
+        self.rewardFunction = rewardFunction
 
-    #     self.start_state = np.concatenate((np.argwhere(self.map == self.START)[0], 
-    #                                          self.encodingFunction(self.prev_states)))
+        # should convert to bins? or leave discrete
+        self.start_state = np.concatenate((np.argwhere(self.map == self.START)[0], 
+                                             self.encodingFunction(self.prev_states)))
 
-    #     self.ROWS, self.COLS = np.shape(self.map)
+        #remove goals for existing maps
 
-    #     #remove goals for existing maps
-    #     for r in range(0,self.ROWS):
-    #     	for c in range(0,self.COLS):
-    #     		if self.map[r,c] == self.GOAL:
-    #     			self.map[r,c] = self.EMPTY
+        # set given goals
 
-    #     for g in goalArray:
-    #     	self.map[g[0],g[1]] = self.GOAL
+        encodingLimits = []
+        for i in range(0,len(self.encodingFunction(self.prev_states))):
+            encodingLimits.append([0,1])
 
-    #     encodingLimits = []
-    #     for i in range(0,len(self.encodingFunction(self.prev_states))):
-    #         encodingLimits.append([0,1])
+        self.statespace_limits.extend(encodingLimits)
 
-    #     sslimits = [[0, self.ROWS - 1], [0, self.COLS - 1]]
-    #     sslimits.extend(encodingLimits)
-    #     #print np.array(sslimits)[:,0]
-
-    #     self.statespace_limits = np.array(sslimits)
-
-    #     self.continuous_dims = []
-    #     self.NOISE = noise
-    #     self.DimNames = ["Dim: "+str(k) for k in range(0,2+len(self.encodingFunction(self.prev_states)))]
-    #     # 2*self.ROWS*self.COLS, small values can cause problem for some
-    #     # planning techniques
-    #     self.episodeCap = 2*self.ROWS*self.COLS
-    #     super(RCIRL, self).__init__()
+        self.NOISE = noise
+        self.DimNames = ["Dim: "+str(k) for k in range(0,2+len(self.encodingFunction(self.prev_states)))]
+        # 2*self.ROWS*self.COLS, small values can cause problem for some
+        # planning techniques
+        self.episodeCap = 2*self.ROWS*self.COLS
+        super(RCIRL, self).__init__()
 
     # def showDomain(self, a=0, s=None):
     # 	raise NotImplementedError
@@ -226,15 +227,3 @@ class RCIRL(Domain):
     #     t[goal] = True
     #     t[pit] = True
     #     return p, r, ns, t, pa
-
-    # def allStates(self):
-    #     if self.continuous_dims == []:
-    #         # Recall that discrete dimensions are assumed to be integer
-    #         return (
-    #             perms(
-    #                 self.discrete_statespace_limits[:,
-    #                                                 1] - self.discrete_statespace_limits[:,
-    #                                                                                      0] + 1) + self.discrete_statespace_limits[
-    #                 :,
-    #                 0]
-    #         )

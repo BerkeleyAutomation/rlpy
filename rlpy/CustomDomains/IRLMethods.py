@@ -1,5 +1,3 @@
-
-
 def allMarkovEncoding(ps):
     return [0]
 
