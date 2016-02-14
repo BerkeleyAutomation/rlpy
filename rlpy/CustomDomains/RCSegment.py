@@ -145,6 +145,13 @@ class RCSegment(Domain):
         trajdist = self.closeness(state) #hi = closer
         return (delt + orient + 2 * trajdist) * 0.01
 
+    def closeness(self, state):
+        head = state[3]
+        cosine_sim = lambda a, b: (np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+        orient = np.array([np.cos(head), np.sin(head)])
+        dgoal = np.subtract(self.GOAL[:2], state[:2])
+        return cosine_sim(orient, dgoal)
+
     def step(self, a):
         ns = self.simulate_step(self.state, a)
         r = self.calculate(ns)
@@ -202,14 +209,6 @@ class RCSegment(Domain):
                 #bind nx, ny to negate movement
 
         return np.array([nx, ny, nspeed, nheading])
-
-
-    def closeness(self, state):
-        head = state[3]
-        cosine_sim = lambda a, b: (np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
-        orient = np.array([np.cos(head), np.sin(head)])
-        dgoal = np.subtract(self.GOAL[:2], state[:2])
-        return cosine_sim(orient, dgoal)
 
     def s0(self):
         self.state = self.INIT_STATE.copy()
@@ -323,8 +322,8 @@ class RCSegment(Domain):
     def reset_rewards(self):
         self.cur_rewards = deepcopy(self.rewards)
 
-    def show_inline(self):
-        s = self.state
+    def show_inline(self, state=None):
+        s = state if state is not None else self.state
         # Plot the car
         x, y, speed, heading = s
         car_xmin = x - self.REAR_WHEEL_RELATIVE_LOC

@@ -68,7 +68,7 @@ class CustomIncreTabular(Representation):
         return 0
 
     def __deepcopy__(self, memo):
-        new_copy = IncrementalTabular(
+        new_copy = CustomIncreTabular(
             self.domain,
             self.discretization)
         new_copy.hash = deepcopy(self.hash)
