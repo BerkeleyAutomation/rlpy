@@ -5,6 +5,7 @@ consumable rewards
 import os,sys,inspect
 from rlpy.Tools import __rlpy_location__, findElemArray1D, perms
 from rlpy.Domains.Domain import Domain
+from DomainMethods import allMarkovEncoding
 # from rlpy.Domains import RCCar
 import numpy as np
 from rlpy.Tools import plt, FONTSIZE, linearMap
@@ -33,8 +34,10 @@ class RCIRL(Domain):
     INIT_STATE = np.array([0.0, 0.0, 0.0, 0.0])
     STEP_REWARD = -1
     GOAL_REWARD = 0
-    GOAL = [.5, .5]
+    # GOAL = [.5, .5]
     GOAL_RADIUS = .1
+    HEADBOUND = 0.10000
+
     actions = np.outer([-1, 0, 1], [-1, 0, 1])
     discount_factor = .9
     episodeCap = 10000
@@ -63,11 +66,13 @@ class RCIRL(Domain):
     # """
     def __init__(self, 
                  goalArray, 
-    			 mapname=os.path.join(default_map_dir, "4x5.txt"),
-                 encodingFunction=ConsumableGridWorldIRL.allMarkovEncoding,
-                 rewardFunction=None,
-                 noise=.1, 
-                 episodeCap=None):
+                 encodingFunction=allMarkovEncoding, # TODO
+                 rewardFunction=None, 
+                 episodeCap=None,
+                 goal_radius=None, 
+                 headbound=None,
+                 noise=.1,
+                 step_reward=None):
        
         #setup consumable rewards
         self.statespace_limits = np.array(
@@ -85,13 +90,24 @@ class RCIRL(Domain):
         self.prev_states = []
 
         self.encodingFunction = encodingFunction
-
         self.rewardFunction = rewardFunction
 
         # should convert to bins? or leave discrete
-        self.start_state = np.concatenate((np.argwhere(self.map == self.START)[0], 
+        self.start_state = np.concatenate((self.INIT_STATE, 
                                              self.encodingFunction(self.prev_states)))
 
+        if noise:
+            self.NOISE = noise
+        if step_reward:
+            self.STEP_REWARD = step_reward
+        if episodeCap:
+            self.episodeCap = episodeCap
+        if goal_radius:
+            self.GOAL_RADIUS = goal_radius
+        if headbound:
+            self.HEADBOUND = headbound
+        if step_reward:
+            self.STEP_REWARD = step_reward
         #remove goals for existing maps
 
         # set given goals
@@ -102,11 +118,7 @@ class RCIRL(Domain):
 
         self.statespace_limits.extend(encodingLimits)
 
-        self.NOISE = noise
         self.DimNames = ["Dim: "+str(k) for k in range(0,2+len(self.encodingFunction(self.prev_states)))]
-        # 2*self.ROWS*self.COLS, small values can cause problem for some
-        # planning techniques
-        self.episodeCap = 2*self.ROWS*self.COLS # TODO
         super(RCIRL, self).__init__()
 
     # def showDomain(self, a=0, s=None):
@@ -117,7 +129,7 @@ class RCIRL(Domain):
         ns = self.state.copy()
         ga = self.goalArray.copy()
 
-        self.prev_states.append(ns[0:2])
+        self.prev_states.append(ns[:4])
 
         if self.random_state.random_sample() < self.NOISE:
             # Random Move
@@ -128,16 +140,14 @@ class RCIRL(Domain):
     #     actionsize = np.shape(self.ACTIONS[a])
     #    # print statesize[0]-actionsize[0]
 
-        ns = np.concatenate(self.simulate_step(self.state[:-1], a), 
-                            self.encodingFunction(self.prev_states))
+        ns = np.concatenate((self.simulate_step(self.state[:4], a), 
+                            self.encodingFunction(self.prev_states)))
     #     #print ns[0], ns[1],ga[0][0],ga[0][1]
 
-        terminal = self.isTerminal()
-    #     #print ns[0], ns[1],ga[0][0],ga[0][1]
+        terminal = self.isTerminal() # TODO: Check - get terminal after?
+
     #     # Compute the reward and enforce ordering
-        if terminal:
-            pass
-        elif ga[0][0] == ns[0] and  ga[0][1] == ns[1]:
+        if not terminal and self.at_goal(state=ns, goal=ga[0]): 
             r = self.GOAL_REWARD
             self.goalArray = ga[1:]
             #print "Goal!", ns
@@ -188,17 +198,20 @@ class RCIRL(Domain):
     def isTerminal(self, s=None):
         # TODO
         # termination condition should include max_steps?
-    #     if s is None:
-    #         s = self.state
-    #     if len(self.goalArray) == 0:
-    #         return True
-    #     #if len(self.prev_states) > self.MAX_STEPS:
-    #     #    return True
+        if s is None:
+            s = self.state
+        if len(self.goalArray) == 0:
+            return True
+        #if len(self.prev_states) > self.MAX_STEPS:
+        #    return True
 
-    #     return False
-        return self.at_goal() 
+        return False
 
-    def at_goal(self):
+    def at_goal(self, state=None, goal=None):
         """Check if current state is at goal"""
-        return (np.linalg.norm(self.state[:2] - self.GOAL[:2]) < self.GOAL_RADIUS
-            and abs(self.state[3] - self.GOAL[3]) < self.GOAL_ORIENT_BOUND)
+        state = state if state else self.state
+        goal = goal if goal else self.GOAL
+
+        return (np.linalg.norm(state[:2] - goal[:2]) < self.GOAL_RADIUS
+            and abs(state[3] - goal[3]) < self.GOAL_ORIENT_BOUND)
+
