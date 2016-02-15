@@ -36,7 +36,7 @@ class RCIRL(Domain):
     HEADINGMAX = np.pi
     INIT_STATE = np.array([0.0, 0.0, 0.0, 0.0])
     STEP_REWARD = -1
-    GOAL_REWARD = 0
+    GOAL_REWARD = 1
     # GOAL = [.5, .5]
     GOAL_RADIUS = .1
     HEADBOUND = 0.10000
