@@ -32,6 +32,36 @@ def stateVisitEncoding(ps, waypoints):
     #print len(waypoints), result_hash
     return result_hash
 
+def svContinuousEncoding(ps, waypoints, goalfn=lambda x, y: x == y):
+    result = []
+    for w in waypoints:
+        k = -1
+        try:
+            k = [state for state in ps if goalfn(state, goal=w)][0]
+        except ValueError: # replace with OutofBouds?
+            pass
+        result.append(k)
+
+    result_hash = []
+
+    if len(waypoints) == 1 and result[0] == -1:
+        return [0]
+    elif len(waypoints) == 1 and result[0] != -1:
+        return [1]
+    
+    if result[0] != -1:
+        result_hash.append(1)
+    else:
+        result_hash.append(0)
+
+    for i in range(1,len(waypoints)):
+        if result[i] != -1 and result[i] > result[i-1]:
+            result_hash.append(1)
+        else:
+            result_hash.append(0)
+    #print len(waypoints), result_hash
+    return result_hash
+
 """
 Popular reward functions that you could use
 """
