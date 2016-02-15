@@ -308,7 +308,7 @@ class ExperimentSegment(Experiment):
                 # Check Performance
                 if self.num_policy_checks > 0 and episode_number % (self.max_eps / self.num_policy_checks) == 0:
                     # show policy or value function
-                    if visualize_learning: #or episode_number == 400:
+                    if visualize_learning and episode_number: #or episode_number == 400:
                         self.domain.showLearning(self.agent.representation)
 
                     self.evaluate(

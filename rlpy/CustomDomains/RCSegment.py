@@ -386,17 +386,6 @@ class RCSegment(Domain):
                         color='y',
                         alpha=.4))
 
-            for block in np.argwhere(self.map == self.BLOCKED):
-                wall_xmin, wall_ymin = block
-                plt.gca().add_patch( 
-                    mpatches.Rectangle(
-                        [wall_xmin,
-                         wall_ymin],
-                        self.XBIN,
-                        self.YBIN,
-                        alpha=.4)
-                    )
-
             plt.xlim([self.XMIN, self.XMAX])
             plt.ylim([self.YMIN, self.YMAX])
             plt.gca().set_aspect('1')
