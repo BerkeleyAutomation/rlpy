@@ -153,6 +153,10 @@ class RCSegment(Domain):
         return cosine_sim(orient, dgoal)
 
     def step(self, a):
+        if self.random_state.random_sample() < self.NOISE:
+            # Random Move
+            a = self.random_state.choice(self.possibleActions())
+            
         ns = self.simulate_step(self.state, a)
         r = self.calculate(ns)
         self.state = ns.copy()
