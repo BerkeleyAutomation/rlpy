@@ -6,8 +6,11 @@ import os,sys,inspect
 from rlpy.Tools import __rlpy_location__, findElemArray1D, perms
 from rlpy.Domains.Domain import Domain
 from DomainMethods import allMarkovEncoding
-# from rlpy.Domains import RCCar
+from rlpy.Tools import plt, bound, wrap, mpatches, id2vec
+import matplotlib as mpl
+from copy import deepcopy
 import numpy as np
+import pickle
 from rlpy.Tools import plt, FONTSIZE, linearMap
 
 class RCIRL(Domain): 
@@ -93,8 +96,7 @@ class RCIRL(Domain):
         self.rewardFunction = rewardFunction
 
         # should convert to bins? or leave discrete
-        self.start_state = np.concatenate((self.INIT_STATE, 
-                                             self.encodingFunction(self.prev_states)))
+        self.start_state = self.augment_state(self.INIT_STATE)
 
         if noise:
             self.NOISE = noise
@@ -116,9 +118,12 @@ class RCIRL(Domain):
         for i in range(0,len(self.encodingFunction(self.prev_states))):
             encodingLimits.append([0,1])
 
-        self.statespace_limits.extend(encodingLimits)
+        self.statespace_limits = np.vstack((self.statespace_limits, encodingLimits))
+        self.state_space_dims = len(self.statespace_limits)
+        continuous_dims = np.arange(self.state_space_dims)
 
         self.DimNames = ["Dim: "+str(k) for k in range(0,2+len(self.encodingFunction(self.prev_states)))]
+
         super(RCIRL, self).__init__()
 
     # def showDomain(self, a=0, s=None):
@@ -140,8 +145,7 @@ class RCIRL(Domain):
     #     actionsize = np.shape(self.ACTIONS[a])
     #    # print statesize[0]-actionsize[0]
 
-        ns = np.concatenate((self.simulate_step(self.state[:4], a), 
-                            self.encodingFunction(self.prev_states)))
+        ns = self.augment_state(self.simulate_step(self.state[:4], a))
     #     #print ns[0], ns[1],ga[0][0],ga[0][1]
 
         terminal = self.isTerminal() # TODO: Check - get terminal after?
@@ -150,7 +154,7 @@ class RCIRL(Domain):
         if not terminal and self.at_goal(state=ns, goal=ga[0]): 
             r = self.GOAL_REWARD
             self.goalArray = ga[1:]
-            #print "Goal!", ns
+            print "Goal!", ns
 
         if self.rewardFunction != None:
             r = self.rewardFunction(self.prev_states, 
@@ -159,6 +163,10 @@ class RCIRL(Domain):
                                     self.GOAL_REWARD)
 
         return r, ns, terminal, self.possibleActions()
+
+    def augment_state(self, state):
+        return np.concatenate((state, 
+                            self.encodingFunction(self.prev_states)))
 
 
     def simulate_step(self, state, a):
@@ -190,7 +198,7 @@ class RCIRL(Domain):
 
     def s0(self):
         self.prev_states = []
-        self.state = self.INIT_STATE.copy()
+        self.state = self.augment_state(self.INIT_STATE.copy())
         self.goalArray = np.array(self.goalArray0)
         
         return self.state.copy(), self.isTerminal(), self.possibleActions()
@@ -209,8 +217,8 @@ class RCIRL(Domain):
 
     def at_goal(self, state=None, goal=None):
         """Check if current state is at goal"""
-        state = state if state else self.state
-        goal = goal if goal else self.GOAL
+        state = state if state is not None else self.state
+        goal = goal if goal is not None else self.GOAL
 
         return (np.linalg.norm(state[:2] - goal[:2]) < self.GOAL_RADIUS
             and abs(state[3] - goal[3]) < self.GOAL_ORIENT_BOUND)
