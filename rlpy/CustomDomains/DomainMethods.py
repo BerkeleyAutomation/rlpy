@@ -39,7 +39,7 @@ Popular reward functions that you could use
 """
 def allMarkovReward(ps,ga, sr, gr):
     r = sr
-    last_state = ps[len(ps)-1][0]
+    last_state = ps[-1]
     if (last_state[0],last_state[1]) in ga:
         r = gr
     return r

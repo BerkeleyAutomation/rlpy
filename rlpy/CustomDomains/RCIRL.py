@@ -40,6 +40,7 @@ class RCIRL(Domain):
     # GOAL = [.5, .5]
     GOAL_RADIUS = .1
     HEADBOUND = 0.10000
+    SPEEDBOUND = 0.02
 
     actions = np.outer([-1, 0, 1], [-1, 0, 1])
     discount_factor = .9
@@ -76,7 +77,7 @@ class RCIRL(Domain):
                  headbound=None,
                  noise=.1,
                  step_reward=None):
-       
+        self.debug = False
         #setup consumable rewards
         self.statespace_limits = np.array(
             [[self.XMIN,
@@ -140,7 +141,7 @@ class RCIRL(Domain):
     #    # print statesize[0]-actionsize[0]
 
         ns = self.augment_state(self.simulate_step(self.state[:4], a))
-
+        # print ns
         # if any(ns):
             # import ipdb; ipdb.set_trace()
 
@@ -150,16 +151,19 @@ class RCIRL(Domain):
         terminal = self.isTerminal() # TODO: Check - get terminal after?
 
         if self.collided(self.state):
-            r = (self.episodeCap - len(self.prev_states)) * self.STEP_REWARD
+            # r = (self.episodeCap - len(self.prev_states)) * self.STEP_REWARD
+            r = -5
             terminal = True
-            print "Bam"
+            if True or self.debug:
+                print "====================== BAM ====================="
 
 
     #     # Compute the reward and enforce ordering
         if not terminal and self.at_goal(state=ns, goal=ga[0]): 
-            r = self.GOAL_REWARD
+            r = self.GOAL_REWARD * (len(self.goalArray0) - len(self.goalArray)) * 2
             self.goalArray = ga[1:]
-            print "Goal!", ns
+            if self.debug:
+                print "New Goal Reached!", ns, r, len(self.prev_states)
 
         if not terminal and self.rewardFunction != None:
             r = self.rewardFunction(self.prev_states, 
@@ -208,6 +212,12 @@ class RCIRL(Domain):
         return np.array([nx, ny, nspeed, nheading])
 
     def s0(self):
+
+        if self.debug:
+            print "#############################"
+            print "######## NEW TRIAL ##########"
+            print "#############################"
+
         self.prev_states = []
         self.state = self.augment_state(self.INIT_STATE.copy())
         self.goalArray = np.array(self.goalArray0)
@@ -221,8 +231,6 @@ class RCIRL(Domain):
             s = self.state
         if len(self.goalArray) == 0:
             return True
-        #if len(self.prev_states) > self.MAX_STEPS:
-        #    return True
 
         return False
 
@@ -231,6 +239,7 @@ class RCIRL(Domain):
         state = state if state is not None else self.state
         goal = goal if goal is not None else self.GOAL
         return (np.linalg.norm(state[:2] - goal[:2]) < self.GOAL_RADIUS
+            and (abs(state[2] - goal[2]) < self.SPEEDBOUND)
             and abs(state[3] - goal[3]) < self.HEADBOUND)
 
     def showDomain(self, a):

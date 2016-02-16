@@ -1,3 +1,5 @@
+import numpy as np
+
 class Encoding:
 
     def __init__(self, waypoints, goalfn):
@@ -11,15 +13,20 @@ class Encoding:
         return [0]
 
     def strict_encoding(self, ps):
+        if len(ps) == 0:
+            self.ps_idx = 0
+            self.waypoint_count = 0
+
         result = []
         wpc = self.waypoint_count # waypointindex
         if wpc == len(self.waypoints):
+            print "All Waypoints Reached"
             return np.ones(wpc)
         for i, s in list(enumerate(ps))[self.ps_idx:]:
             # check if achieved next waypoint
                 # increment waypoint
             if self.goalfn(s, goal=self.waypoints[wpc]):
-                print "Got em"
+                # print "New waypoint reached - Got em"
                 wpc += 1 
 
         self.waypoint_count = wpc
