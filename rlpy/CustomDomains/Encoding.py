@@ -13,10 +13,13 @@ class Encoding:
     def strict_encoding(self, ps):
         result = []
         wpc = self.waypoint_count # waypointindex
+        if wpc == len(self.waypoints):
+            return np.ones(wpc)
         for i, s in list(enumerate(ps))[self.ps_idx:]:
             # check if achieved next waypoint
                 # increment waypoint
             if self.goalfn(s, goal=self.waypoints[wpc]):
+                print "Got em"
                 wpc += 1 
 
         self.waypoint_count = wpc

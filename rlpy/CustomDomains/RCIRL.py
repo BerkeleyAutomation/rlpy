@@ -44,7 +44,7 @@ class RCIRL(Domain):
     actions = np.outer([-1, 0, 1], [-1, 0, 1])
     discount_factor = .9
     episodeCap = 10000
-    delta_t = .1  # time between steps
+    delta_t = .3  # time between steps
     CAR_LENGTH = .3  # L on the webpage
     CAR_WIDTH = .15
     # The location of rear wheels if the car facing right with heading 0
@@ -126,15 +126,9 @@ class RCIRL(Domain):
 
         super(RCIRL, self).__init__()
 
-    # def showDomain(self, a=0, s=None):
-    # 	raise NotImplementedError
-
     def step(self, a):
         r = self.STEP_REWARD
-        ns = self.state.copy()
         ga = self.goalArray.copy()
-
-        self.prev_states.append(ns[:4])
 
         if self.random_state.random_sample() < self.NOISE:
             # Random Move
@@ -146,9 +140,20 @@ class RCIRL(Domain):
     #    # print statesize[0]-actionsize[0]
 
         ns = self.augment_state(self.simulate_step(self.state[:4], a))
+
+        # if any(ns):
+            # import ipdb; ipdb.set_trace()
+
+        self.prev_states.append(ns[:4])
     #     #print ns[0], ns[1],ga[0][0],ga[0][1]
 
         terminal = self.isTerminal() # TODO: Check - get terminal after?
+
+        if self.collided(self.state):
+            r = (self.episodeCap - len(self.prev_states)) * self.STEP_REWARD
+            terminal = True
+            print "Bam"
+
 
     #     # Compute the reward and enforce ordering
         if not terminal and self.at_goal(state=ns, goal=ga[0]): 
@@ -156,21 +161,27 @@ class RCIRL(Domain):
             self.goalArray = ga[1:]
             print "Goal!", ns
 
-        if self.rewardFunction != None:
+        if not terminal and self.rewardFunction != None:
             r = self.rewardFunction(self.prev_states, 
                                     self.goalArray, 
                                     self.STEP_REWARD, 
                                     self.GOAL_REWARD)
 
+        self.state = ns.copy()
         return r, ns, terminal, self.possibleActions()
 
     def augment_state(self, state):
         return np.concatenate((state, 
                             self.encodingFunction(self.prev_states)))
 
+    def collided(self, state):
+        x, y = state[:2]
+        return x == self.XMIN or x == self.XMAX or y == self.YMIN or y == self.YMAX
+
 
     def simulate_step(self, state, a):
         x, y, speed, heading = state
+
         # Map a number between [0,8] to a pair. The first element is
         # acceleration direction. The second one is the indicator for the wheel
         acc, turn = id2vec(a, [3, 3])
@@ -219,7 +230,42 @@ class RCIRL(Domain):
         """Check if current state is at goal"""
         state = state if state is not None else self.state
         goal = goal if goal is not None else self.GOAL
-
         return (np.linalg.norm(state[:2] - goal[:2]) < self.GOAL_RADIUS
-            and abs(state[3] - goal[3]) < self.GOAL_ORIENT_BOUND)
+            and abs(state[3] - goal[3]) < self.HEADBOUND)
 
+    def showDomain(self, a):
+        s = self.state
+        # Plot the car
+        x, y, speed, heading = s[:4]
+        car_xmin = x - self.REAR_WHEEL_RELATIVE_LOC
+        car_ymin = y - self.CAR_WIDTH / 2.
+        if self.domain_fig is None:  # Need to initialize the figure
+            self.domain_fig = plt.figure()
+            # Goal
+            for goal in self.goalArray:
+                plt.gca(
+                ).add_patch(
+                    plt.Circle(
+                        goal[:2],
+                        radius=self.GOAL_RADIUS,
+                        color='g',
+                        alpha=.4))
+                plt.xlim([self.XMIN, self.XMAX])
+                plt.ylim([self.YMIN, self.YMAX])
+                plt.gca().set_aspect('1')
+        # Car
+        if self.car_fig is not None:
+            plt.gca().patches.remove(self.car_fig)
+
+        self.car_fig = mpatches.Rectangle(
+            [car_xmin,
+             car_ymin],
+            self.CAR_LENGTH,
+            self.CAR_WIDTH,
+            alpha=.4)
+        rotation = mpl.transforms.Affine2D().rotate_deg_around(
+            x, y, heading * 180 / np.pi) + plt.gca().transData
+        self.car_fig.set_transform(rotation)
+        plt.gca().add_patch(self.car_fig)
+
+        plt.draw()
