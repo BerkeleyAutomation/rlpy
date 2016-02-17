@@ -20,7 +20,7 @@ class Encoding:
         result = []
         wpc = self.waypoint_count # waypointindex
         if wpc == len(self.waypoints):
-            print "All Waypoints Reached"
+            # print "All Waypoints Reached"
             return np.ones(wpc)
         for i, s in list(enumerate(ps))[self.ps_idx:]:
             # check if achieved next waypoint

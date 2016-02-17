@@ -71,7 +71,8 @@ class RCIRL(Domain):
     def __init__(self, 
                  goalArray, 
                  encodingFunction=allMarkovEncoding, # TODO
-                 rewardFunction=None, 
+                 rewardFunction=None,
+                 goalfn=lambda state, goal: state == goal,
                  episodeCap=None,
                  goal_radius=None, 
                  headbound=None,
@@ -95,6 +96,7 @@ class RCIRL(Domain):
 
         self.encodingFunction = encodingFunction
         self.rewardFunction = rewardFunction
+        self.goalfn = goalfn
 
         # should convert to bins? or leave discrete
         self.start_state = self.augment_state(self.INIT_STATE)
@@ -152,15 +154,15 @@ class RCIRL(Domain):
 
         if self.collided(self.state):
             # r = (self.episodeCap - len(self.prev_states)) * self.STEP_REWARD
-            r = -5
+            r = -50
             terminal = True
-            if True or self.debug:
+            if self.debug:
                 print "====================== BAM ====================="
 
 
     #     # Compute the reward and enforce ordering
-        if not terminal and self.at_goal(state=ns, goal=ga[0]): 
-            r = self.GOAL_REWARD * (len(self.goalArray0) - len(self.goalArray)) * 2
+        if not terminal and self.goalfn(ns, ga[0]): 
+            r = self.GOAL_REWARD * 5 * (len(self.goalArray0) - len(self.goalArray)) ** 1.3
             self.goalArray = ga[1:]
             if self.debug:
                 print "New Goal Reached!", ns, r, len(self.prev_states)
@@ -234,13 +236,13 @@ class RCIRL(Domain):
 
         return False
 
-    def at_goal(self, state=None, goal=None):
-        """Check if current state is at goal"""
-        state = state if state is not None else self.state
-        goal = goal if goal is not None else self.GOAL
-        return (np.linalg.norm(state[:2] - goal[:2]) < self.GOAL_RADIUS
-            and (abs(state[2] - goal[2]) < self.SPEEDBOUND)
-            and abs(state[3] - goal[3]) < self.HEADBOUND)
+    # def at_goal(self, state=None, goal=None):
+    #     """Check if current state is at goal"""
+    #     state = state if state is not None else self.state
+    #     goal = goal if goal is not None else self.GOAL
+    #     return (np.linalg.norm(state[:2] - goal[:2]) < self.GOAL_RADIUS
+    #         and (abs(state[2] - goal[2]) < self.SPEEDBOUND)
+    #         and abs(state[3] - goal[3]) < self.HEADBOUND)
 
     def showDomain(self, a):
         s = self.state
