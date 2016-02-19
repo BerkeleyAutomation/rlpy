@@ -127,7 +127,12 @@ class RCIRL(Domain):
 
         self.DimNames = ["Dim: "+str(k) for k in range(0,2+len(self.encodingFunction(self.prev_states)))]
 
+        self.terminal_state = []
+
         super(RCIRL, self).__init__()
+
+    def possibleActions(self):
+        return np.array([0, 1, 3, 4, 6, 7])
 
     def step(self, a):
         r = self.STEP_REWARD
@@ -162,7 +167,7 @@ class RCIRL(Domain):
 
     #     # Compute the reward and enforce ordering
         if not terminal and self.goalfn(ns, ga[0]): 
-            r = self.GOAL_REWARD * 5 * (len(self.goalArray0) - len(self.goalArray)) ** 1.3
+            r = self.GOAL_REWARD * 5 # * (len(self.goalArray0) - len(self.goalArray)) ** 1.3
             self.goalArray = ga[1:]
             if self.debug:
                 print "New Goal Reached!", ns, r, len(self.prev_states)
@@ -172,8 +177,14 @@ class RCIRL(Domain):
                                     self.goalArray, 
                                     self.STEP_REWARD, 
                                     self.GOAL_REWARD)
+        
+        ## DEBUG
+        if len(self.prev_states) == 11:
+            self.terminal_state.append(self.state)   
+        ######### 
 
         self.state = ns.copy()
+
         return r, ns, terminal, self.possibleActions()
 
     def augment_state(self, state):

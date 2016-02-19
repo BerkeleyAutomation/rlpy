@@ -348,7 +348,7 @@ class RCSegment(Domain):
             ).add_patch(
                 plt.Circle(
                     reward[:2],
-                    radius=self.GOAL_RADIUS,
+                    radius=self.GOAL_RADIUS * 0.1,
                     color='y',
                     alpha=.4))
 
