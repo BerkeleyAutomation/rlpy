@@ -96,7 +96,7 @@ class RCSegment(Domain):
 
     def __init__(self, goal=[0.5, 0.3], 
                     noise=0, discretize=20, with_collision=False, 
-                    mapname=None, episodeCap=200, rewardfile=None,
+                    mapname=None, episodeCap=200, rewardfile=None, rewards=None,
                     goal_radius=None, orientation_bound=None,
                     goal_reward=None, collide_reward=None, step_reward=None):
         self.map = None
@@ -130,9 +130,11 @@ class RCSegment(Domain):
             assert self.get_bin(self.GOAL) not in np.argwhere(self.map == self.BLOCKED)
             self.calculate_protrusions()
 
-        if rewardfile:
+        if rewardfile and rewards is None:
             with open(rewardfile, "r") as f:
                 self.rewards = pickle.load(f)
+        if rewards is not None:
+            self.rewards = rewards
 
         self.with_segment = (rewardfile is not None)
         self.with_collision = with_collision
@@ -350,7 +352,7 @@ class RCSegment(Domain):
                     reward[:2],
                     radius=self.GOAL_RADIUS * 0.1,
                     color='y',
-                    alpha=.4))
+                    alpha=.1))
 
         _plt.xlim([self.XMIN, self.XMAX])
         _plt.ylim([self.YMIN, self.YMAX])
@@ -394,7 +396,7 @@ class RCSegment(Domain):
                         reward[:2],
                         radius=self.GOAL_RADIUS,
                         color='y',
-                        alpha=.4))
+                        alpha=.04))
 
             for block in np.argwhere(self.map == self.BLOCKED):
                 wall_xmin, wall_ymin = block
