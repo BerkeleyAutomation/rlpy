@@ -25,9 +25,11 @@ class Encoding:
         for i, s in list(enumerate(ps))[self.ps_idx:]:
             # check if achieved next waypoint
                 # increment waypoint
-            if self.goalfn(s, goal=self.waypoints[wpc]):
-                # print "New waypoint reached - Got em"
+            while self.goalfn(s, goal=self.waypoints[wpc]):
+                print "New waypoint reached - Got em {} + 1".format(wpc)
                 wpc += 1 
+                if wpc >= len(self.waypoints):
+                    break
 
         self.waypoint_count = wpc
         self.ps_idx = len(ps)
